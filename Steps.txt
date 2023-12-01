@@ -1,0 +1,173 @@
+#Installing K8s on ubuntu 20.04   Reference- https://www.cherryservers.com/blog/install-kubernetes-on-ubuntu
+
+- Create 2 ubuntu instances
+   - 20.04
+   - Medium
+   - 15GB
+  
+##### On Both ###### 
+   - sudo swapoff -a
+   - sudo sed -i '/ swap / s/^/#/' /etc/fstab
+   
+   - Update the /etc/hosts
+      - 172.31.90.23        kmaster     #private IP of kmaster
+      - 172.31.90.36        kworker1    #private IP of kworker1
+   
+   - cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+     overlay
+     br_netfilter
+     EOF
+   - sudo modprobe overlay
+   - sudo modprobe br_netfilter
+   - cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+     net.bridge.bridge-nf-call-iptables  = 1
+     net.bridge.bridge-nf-call-ip6tables = 1
+     net.ipv4.ip_forward                 = 1
+     EOF
+   - sudo sysctl --system
+   
+   - sudo apt-get update
+   - sudo apt-get install -y apt-transport-https ca-certificates curl
+   - sudo mkdir /etc/apt/keyrings
+   - curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+   - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+   - sudo apt-get update
+   - sudo apt install -y kubelet=1.26.5-00 kubeadm=1.26.5-00 kubectl=1.26.5-00
+   - sudo apt install docker.io
+   - sudo mkdir /etc/containerd
+   - sudo sh -c "containerd config default > /etc/containerd/config.toml"
+   - sudo sed -i 's/ SystemdCgroup = false/ SystemdCgroup = true/' /etc/containerd/config.toml
+   - sudo systemctl restart containerd.service
+   - sudo systemctl restart kubelet.service
+   - sudo systemctl enable kubelet.service
+
+###### On Master ######
+- sudo kubeadm config images pull
+- sudo kubeadm init
+- mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+  #installing weave 
+- kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml     
+
+- git clone https://github.com/adityaofficial88/Microservice1
+- git clone https://github.com/adityaofficial88/Microservice2
+
+- cd Microservice1
+- docker login -u adityaverticurl
+   # type the password 
+- docker build -t adityaverticurl/microservice1:latest -f Dockerfile.api1 .
+- docker push adityaverticurl/microservice1:latest
+
+- cd ../Microservice2
+- docker build -t adityaverticurl/microservice2:latest -f Dockerfile.api2 .
+- docker push adityaverticurl/microservice2:latest
+
+- cd ../Microservice1
+- vi microservice1-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microservice1-deployment
+spec:
+  replicas: 3  # Adjust as needed
+  selector:
+    matchLabels:
+      app: microservice1
+  template:
+    metadata:
+      labels:
+        app: microservice1
+    spec:
+      containers:
+      - name: microservice1
+        image: adityaverticurl/microservice1:latest  # Replace with your Docker Hub username
+        ports:
+        - containerPort: 5000
+
+- vi microservice1-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice1-service
+spec:
+  selector:
+    app: microservice1
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
+  type: ClusterIP
+
+- kubectl apply -f microservice1-deployment.yaml
+- kubectl apply -f microservice1-service.yaml
+
+#for checking that service is working properly or not 
+- kubectl get pod -o wide
+- curl <IP address of one of the microservice1 deployed pod>:5000/listproducts    #in place of "/listproducts" you can give other endpoints also which you have in microservice1
+
+Now you can see the list of products, it means your microservice1 is working properly
+
+###### do same things for microservice2 also ######
+- cd ../Microservice2
+- vi microservice2-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microservice2-deployment
+spec:
+  replicas: 3  # Adjust as needed
+  selector:
+    matchLabels:
+      app: microservice2
+  template:
+    metadata:
+      labels:
+        app: microservice2
+    spec:
+      containers:
+      - name: microservice2
+        image: adityaverticurl/microservice2:latest  # Replace with your Docker Hub username
+        ports:
+        - containerPort: 5001
+
+- vi microservice2-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice2-service
+spec:
+  selector:
+    app: microservice2
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5001
+  type: NodePort   #we have not given "ClusterIP" here because we have to use microservice2 in the communication from web browser, if we will do ClusterIP then then communication can occure between the pods only within the cluster itself. 
+
+- kubectl apply -f microservice2-deployment.yaml
+- kubectl apply -f microservice2-service.yaml
+
+#for checking that service is working properly or not 
+- kubectl get pods -o wide
+- curl <IP address of one of the microservice2 deployed pod>:5001 
+
+Now you can see the index.html page so it means your microservice2 is running properly
+
+----------##########################-----------
+#For Establishing the communication btw both of them
+#In Microservice2
+
+- kubectl get svc
+  Now use will see something like "microservice2-service   NodePort    10.107.57.205   <none>        80:32289/TCP   94s"
+  So now you have to open this port "32289" in your Instance
+  Then go to the browser
+      - http://44.212.13.13:32289/      #here 44.212.13.13 is the public of your instance 
+
+  Now you can see all the things running smoothly(;
+
