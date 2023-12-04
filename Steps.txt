@@ -425,7 +425,7 @@ microservice1-service   ClusterIP   10.99.72.244    <none>        80/TCP        
 microservice2-service   NodePort    10.107.57.205   <none>        80:32289/TCP   2d9h
 nginx-service           ClusterIP   10.98.210.196   <none>        80/TCP         2d10h
 
-Now copy cluster-IP(10.99.72.244) and Port(80)  and then set the end point at the end like 10.44.0.10:80/listproducts
+Now copy Port(80) and copy IP of any microservice1 pod(u can get it from kubectl get pods -o wide) and then set the end point at the end like 10.44.0.10:80/listproducts
 
 - kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh -c "while sleep 0.01; do wget -q -O- http://10.44.0.10:80/listproducts; done" 
 
