@@ -461,3 +461,40 @@ Do the same things for microservice2 like
         Now you can see that new pods are created i.e HPA is working(;
 #################################################### HPA End #####################################################################
 
+#################################################### ECR #########################################################################
+
+#Reference for pushing and pulling using ECR
+   -> https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html
+   -> https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-pull-ecr-image.html
+
+So till now we have deployed the microservices using docker hub but now we have deployed using AWS ECR(Elastic container registry)
+
+# Go to AWS ECR and create 2 new repositories, 1st for microservice1 and 2nd for microservice2
+
+# Install aws cli
+- sudo apt install awscli
+
+
+# AWS configure
+# Go to IAM->Users>aditya>Security Credentials
+# Now scroll down to Access Keys, delete the existing ones and create a new one and then copy the credentials(Key, Secret Access Key)
+- aws configure 
+   Now paste the copied credentials, region, leave the format just press enter
+
+- aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 267092042432.dkr.ecr.us-east-1.amazonaws.com
+
+- kubectl create secret docker-registry ecr-secret --docker-server=267092042432.dkr.ecr.us-east-1.amazonaws.com --docker-username=AWS --docker-password=$(aws ecr get-login-password --region us-east-1) --docker-email=dummy@example.com
+
+- docker build -t api1-image -f Dockerfile.api1 . 
+
+- docker tag api1-image:latest 267092042432.dkr.ecr.us-east-1.amazonaws.com/adi_repo:api1-image
+  Here, "adi-repo" is the repo for storing microservice1 image i.e "api1-image" 
+
+- docker push 267092042432.dkr.ecr.us-east-1.amazonaws.com/adi_repo:api1-image
+
+Now change the image pulling destination from docker hub to ECR in the deployment file of microservice1 and then again deploy the microservice1 by running command "kubectl apply -f microservice1-deployment.yaml"
+
+Now you can check the pods by running the command "kubectl get pods -o wide"
+
+
+
